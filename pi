@@ -1,0 +1,101 @@
+
+Üf}Wœ  ã               @   s2  d  Z  d d l Z d d l m Z m Z d d l m Z m Z m  Z  e j d d … d k rl d d l	 Z	 n+ y d d l
+ Z	 Wn e
+ k
+ r– d Z	 Yn Xd  Z d Z
+ d	 Z d
+ Z Gd
+ d „  d e ƒ Z d d
+ d d d d d d „ Z d d
+ d d d „ Z d d
+ d d d „ Z d d d d „ Z d d d „ Z d S)z÷Implementation of the JSON adaptation objects
+
+This module exists to avoid a circular import problem: pyscopg2.extras depends
+on psycopg2.extension, so I can't create the default JSON typecasters in
+extensions importing register_json from extras.
+é    N)Ú	ISQLQuoteÚQuotedString)Únew_typeÚnew_array_typeÚ
+register_typeé   é   ér   éÇ   iÚ  iß  c               @   ss   e  Z d  Z d Z d d d „ Z d d „  Z d  d „  Z d	 d
+ „  Z  e j	 d k  rc d d
+ „  Z
+ n d d
+ „  Z
+ d S)ÚJsona¡  
+    An `~psycopg2.extensions.ISQLQuote` wrapper to adapt a Python object to
+    :sql:`json` data type.
+
+    `!Json` can be used to wrap any object supported by the provided *dumps*
+    function.  If none is provided, the standard :py:func:`json.dumps()` is
+    used (`!simplejson` for Python < 2.6;
+    `~psycopg2.extensions.ISQLQuote.getquoted()` will raise `!ImportError` if
+    the module is not available).
+
+    Nc             C   sI   | |  _  | d  k	 r! | |  _ n$ t d  k	 r< t j |  _ n	 d  |  _ d  S)N)Ú adaptedÚ_dumpsÚjsonÚdumps)Úselfr   r   © r   úWD:\Program Files (x86)\Forcepoint\SAM\server\python\lib\site-packages\psycopg2\_json.pyÚ__init__B   s    	z
+Json.__init__c             C   s   | t  k r |  Sd  S)N)r   )r   Úprotor   r   r   Ú
+__conform__L   s    zJson.__conform__c             C   s/   |  j  } | d k	 r | | ƒ St d ƒ ‚ d S)zßSerialize *obj* in JSON format.
+
+        The default is to call `!json.dumps()` or the *dumps* function
+        provided in the constructor. You can override this method to create a
+        customized JSON wrapper.
+        Nz>json module not available: you should provide a dumps function)r
+   Ú
+ImportError)r   Úobjr   r   r   r   r   P   s
+     	
+z
+Json.dumpsc             C   s"   |  j  |  j ƒ } t | ƒ j ƒ  S)N)r   r   r   Ú	getquoted)r   Úsr   r   r   r   _   s    zJson.getquotedé   c             C   s
+   |  j  ƒ  S)N)r   )r   r   r   r   Ú __str__d   s    zJson.__str__c             C   s   |  j  ƒ  j d d ƒ S)NÚasciiÚ replace)r   Údecode)r   r   r   r   r   g   s    )r   )
+Ú__name__Ú
+__module__Ú__qualname__Ú __doc__r   r   r   r   ÚsysÚversion_infor   r   r   r   r   r
+   6   s   
+
+r
+   Fr   c              C   s’   | d k r! t  |  | ƒ \ } } t | | d | d | j ƒ  ƒ\ } }  t | | r[ |  p^ d ƒ |  d k	 rˆ t |  | r |  p„ d ƒ | |  f S)a  Create and register typecasters converting :sql:`json` type to Python objects.
+
+    :param conn_or_curs: a connection or cursor used to find the :sql:`json`
+        and :sql:`json[]` oids; the typecasters are registered in a scope
+        limited to this object, unless *globally* is set to `!True`. It can be
+        `!None` if the oids are provided
+    :param globally: if `!False` register the typecasters only on
+        *conn_or_curs*, otherwise register them globally
+    :param loads: the function used to parse the data into a Python object. If
+        `!None` use `!json.loads()`, where `!json` is the module chosen
+        according to the Python version (see above)
+    :param oid: the OID of the :sql:`json` type if known; If not, it will be
+        queried on *conn_or_curs*
+    :param array_oid: the OID of the :sql:`json[]` array type if known;
+        if not, it will be queried on *conn_or_curs*
+    :param name: the name of the data type to look for in *conn_or_curs*
+
+    The connection or cursor passed to the function will be used to query the
+    database and look for the OID of the :sql:`json` type (or an alternative
+    type if *name* if provided). No query is performed if *oid* and *array_oid*
+    are provided.  Raise `~psycopg2.ProgrammingError` if the type is not found.
+
+    NÚloadsÚname)Ú_get_json_oidsÚ_create_json_typecastersÚupperr   )Úconn_or_cursÚgloballyr%   ÚoidÚ	array_oidr&   ÚJSONÚ	JSONARRAYr   r   r   Ú
+register_jsonl   s    $r0   c          
+   C   s%   t  d |  d | d | d t d t ƒ S)a{  
+    Create and register :sql:`json` typecasters for PostgreSQL 9.2 and following.
+
+    Since PostgreSQL 9.2 :sql:`json` is a builtin type, hence its oid is known
+    and fixed. This function allows specifying a customized *loads* function
+    for the default :sql:`json` type without querying the database.
+    All the parameters have the same meaning of `register_json()`.
+    r*   r+   r%   r,   r-   )r0   ÚJSON_OIDÚ
+JSONARRAY_OID)r*   r+   r%   r   r   r   Úregister_default_json’   s    	r3   c          
+   C   s+   t  d |  d | d | d t d t d d  ƒ S)a^  
+    Create and register :sql:`jsonb` typecasters for PostgreSQL 9.4 and following.
+
+    As in `register_default_json()`, the function allows to register a
+    customized *loads* function for the :sql:`jsonb` type at its known oid for
+    PostgreSQL 9.4 and following versions.  All the parameters have the same
+    meaning of `register_json()`.
+    r*   r+   r%   r,   r-   r&   Zjsonb)r0   Ú	JSONB_OIDÚJSONBARRAY_OID)r*   r+   r%   r   r   r   Úregister_default_jsonbž   s    	r6   r.   c                 s   ˆ  d k r0 t  d k r' t d ƒ ‚ n	 t  j ‰  ‡  f d d †  } t |  f | | ƒ } | d k	 r t | f d | | ƒ } n d } | | f S)z&Create typecasters for json data type.Nzno json module availablec                s   |  d  k r d  Sˆ  |  ƒ S)Nr   )r   Úcur)r%   r   r   Ú
+typecast_json²   s    z/_create_json_typecasters.<locals>.typecast_jsonz %sARRAY)r   r   r%   r   r   ) r,   r-   r%   r&   r8   r.   r/   r   )r%   r   r(   ª   s    	r(   c       	      C   s¶   d d l  m } d d l m } | |  ƒ \ } } | j } | j d k rP d pS d }  | j d  |  | f ƒ | j  ƒ  } | | k r™ | j r™ | j	 ƒ  | s² | j
+ d | ƒ ‚ | S)	Nr   )ÚSTATUS_IN_TRANSACTION)Ú_solve_conn_cursi¬9 ÚtyparrayÚNULLz6SELECT t.oid, %s FROM pg_type t WHERE t.typname = %%s;z%s data type not found)
+Úpsycopg2.extensionsr9   Zpsycopg2.extrasr:   ÚstatusÚserver_versionÚ executeÚfetchoneÚ
+autocommitÚrollbackÚProgrammingError)	r*   r&   r9   r:   ÚconnZcursZ
+conn_statusr;   Úrr   r   r   r'   ¿   s    	
+r'   )r    r   )r"   r#   Úpsycopg2._psycopgr   r   r   r   r   r$   r   Z
+simplejsonr   r1   r2   r4   r5   Úobjectr
+   r0   r3   r6   r(   r'   r   r   r   r   Ú<module>   s(   
+
+6	%
